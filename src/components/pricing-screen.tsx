@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-import { AppShell } from "@/components/app-shell";
-import { useAuth } from "@/components/providers/auth-provider";
+import { PublicSiteShell } from "@/components/public-site-shell";
 import { listPlans } from "@/lib/api";
 import type { PlanResponse } from "@/lib/types";
 
 export function PricingScreen() {
-  const { setAuthOpen } = useAuth();
   const [plans, setPlans] = useState<PlanResponse[]>([]);
 
   useEffect(() => {
@@ -16,16 +14,7 @@ export function PricingScreen() {
   }, []);
 
   return (
-    <AppShell
-      title="Pricing"
-      eyebrow="Free vs premium"
-      description="Two plans, clear tradeoffs, and premium controls for faster matching and multi-listing management."
-      actions={
-        <button className="primary-button" onClick={() => setAuthOpen(true)} type="button">
-          Start with OTP
-        </button>
-      }
-    >
+    <PublicSiteShell pageLabel="Plans for faster matching.">
       <div className="grid-two">
         {plans.map((plan) => (
           <article className="plan-card" key={plan.id}>
@@ -61,6 +50,6 @@ export function PricingScreen() {
           </article>
         ))}
       </div>
-    </AppShell>
+    </PublicSiteShell>
   );
 }

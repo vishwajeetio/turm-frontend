@@ -11,8 +11,10 @@ import {
   useState
 } from "react";
 
+import { DashboardHeader } from "@/components/dashboard-header";
 import { PropertyFeedCard, type PropertyFeedCardMediaSlide } from "@/components/property-feed-card";
 import { useAuth } from "@/components/providers/auth-provider";
+import { SiteLogoLink } from "@/components/site-logo-link";
 import {
   TenantFeedCard as TenantFeedCardView,
   type TenantFeedCardSection,
@@ -251,7 +253,7 @@ function FeedIcon({ path }: { path: string }) {
 
 export function FeedScreen() {
   const searchParams = useSearchParams();
-  const { activeRole, dashboard, loading, logout, session } = useAuth();
+  const { activeRole, dashboard, loading, logout, session, setActiveRole } = useAuth();
 
   const [tenantPreferences, setTenantPreferences] =
     useState<TenantSearchPreferenceUpsert | null>(null);
@@ -264,7 +266,6 @@ export function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [currentListingImageIndex, setCurrentListingImageIndex] = useState(0);
   const [mediaRevision, setMediaRevision] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [mobileListingDetailsExpanded, setMobileListingDetailsExpanded] = useState(false);
   const [tenantFeedFilters, setTenantFeedFilters] = useState<TenantFeedFilters>(
@@ -320,7 +321,6 @@ export function FeedScreen() {
     [eligibleTenantListingIds, myListings]
   );
 
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const motionTimerRef = useRef<number | null>(null);
   const flashTimerRef = useRef<number | null>(null);
 
@@ -333,6 +333,7 @@ export function FeedScreen() {
   const queuedBlobKeysRef = useRef<Set<string>>(new Set());
   const prefetchQueueRef = useRef<PrefetchTask[]>([]);
   const listingCardsRef = useRef<ListingDeckCard[]>([]);
+  const tenantCardsRef = useRef<TenantDeckCard[]>([]);
   const tenantFeedFiltersRef = useRef<TenantFeedFilters>(defaultTenantFeedFilters());
   const selectedListingIdRef = useRef<string | null>(null);
   const activePrefetchCountRef = useRef(0);
@@ -757,6 +758,10 @@ export function FeedScreen() {
       const activeListingIds = (options?.listing_ids ?? activeFilters.listing_ids).filter(Boolean);
       const activeListingId =
         activeListingIds[0] ?? selectedListingIdRef.current;
+      const excludeTenantProfileIds =
+        mode === "append"
+          ? tenantCardsRef.current.map((card) => card.tenant_profile_id)
+          : [];
       if (!session || !activeListingId) {
         return;
       }
@@ -765,6 +770,7 @@ export function FeedScreen() {
           listing_id: activeListingId,
           offset: mode === "reset" ? 0 : (tenantOffsetsRef.current.get(activeListingId) ?? 0),
           limit: 3,
+          exclude_tenant_profile_ids: excludeTenantProfileIds,
           session_id: sessionId,
           min_salary_inr: activeFilters.min_salary_inr,
           max_salary_inr: activeFilters.max_salary_inr,
@@ -793,6 +799,7 @@ export function FeedScreen() {
             listing_id: listingId,
             offset: mode === "reset" ? 0 : (tenantOffsetsRef.current.get(listingId) ?? 0),
             limit: 3,
+            exclude_tenant_profile_ids: excludeTenantProfileIds,
             session_id: sessionId,
             min_salary_inr: activeFilters.min_salary_inr,
             max_salary_inr: activeFilters.max_salary_inr,
@@ -905,6 +912,10 @@ export function FeedScreen() {
   }, [listingCards]);
 
   useEffect(() => {
+    tenantCardsRef.current = tenantCards;
+  }, [tenantCards]);
+
+  useEffect(() => {
     tenantFeedFiltersRef.current = tenantFeedFilters;
   }, [tenantFeedFilters]);
 
@@ -998,31 +1009,6 @@ export function FeedScreen() {
       setTenantFeedFilters(defaultTenantFeedFilters());
     }
   }, [tenantFilterStorageKey]);
-
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current) {
-        return;
-      }
-      if (!menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onEscape);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onEscape);
-    };
-  }, [menuOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1225,7 +1211,6 @@ export function FeedScreen() {
       setTenantFeedFilterDraft(tenantFeedFilters);
     }
     setFilterOpen(true);
-    setMenuOpen(false);
   }, [listingRepresentativeMode, tenantFeedFilters]);
 
   const runListingSwipe = useCallback(
@@ -1695,13 +1680,7 @@ export function FeedScreen() {
     return (
       <div className="ultra-feed-shell ultra-feed-shell-locked" {...secureShellProps}>
         <header className="ultra-feed-header">
-          <div className="ultra-feed-header-left">
-            <span className="ultra-feed-brand-mark">T</span>
-            <div>
-              <strong>Turm Feed</strong>
-              <span>Secure preview mode</span>
-            </div>
-          </div>
+          <SiteLogoLink brandLabel="Turm" pageLabel="Secure preview mode" />
         </header>
 
         <main className="ultra-feed-main">
@@ -1721,78 +1700,38 @@ export function FeedScreen() {
 
   return (
     <div className="ultra-feed-shell ultra-feed-shell-locked" {...secureShellProps}>
-      <header className="ultra-feed-header">
-          <div className="ultra-feed-header-left">
-            <span className="ultra-feed-brand-mark">T</span>
-            <div>
-              <strong>{isPro ? "PRO" : "Turm"}</strong>
-              <span>{pageLabel}</span>
-            </div>
-          </div>
-
-        <div className="ultra-feed-header-actions" ref={menuRef}>
-          {((!listingRepresentativeMode && tenantProfile) || listingRepresentativeMode) ? (
+      <DashboardHeader
+        activeRole={activeRole}
+        brandLabel={isPro ? "PRO" : "Turm"}
+        headerActions={({ closeMenu }) =>
+          ((!listingRepresentativeMode && tenantProfile) || listingRepresentativeMode) ? (
             <button
               aria-label="Open filters"
               className="ultra-feed-icon-button ultra-feed-header-action-button"
-              onClick={openFilterPanel}
+              onClick={() => {
+                closeMenu();
+                openFilterPanel();
+              }}
               type="button"
             >
               <FeedIcon path="M3 5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2h-6.2l-2.2 4.4V18a1 1 0 0 1-1.45.9l-2-1A1 1 0 0 1 8 17v-6.6L5.8 6H4a1 1 0 0 1-1-1z" />
               <span className="ultra-feed-action-label">Filters</span>
             </button>
-          ) : null}
-
-          <Link
-            aria-label="Messages"
-            className="ultra-feed-icon-button ultra-feed-header-action-button"
-            href="/messages"
-          >
-            <FeedIcon path="M4 4a2 2 0 0 0-2 2v15.5a.5.5 0 0 0 .82.39L7.67 18H20a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4zm1 4h14a1 1 0 1 1 0 2H5a1 1 0 1 1 0-2zm0 4h10a1 1 0 1 1 0 2H5a1 1 0 1 1 0-2z" />
-            <span className="ultra-feed-action-label">Messages</span>
-          </Link>
-
-          <button
-            aria-label="Open menu"
-            className="ultra-feed-icon-button"
-            onClick={() => {
-              setMenuOpen((current) => !current);
-              setFilterOpen(false);
-            }}
-            type="button"
-          >
-            <FeedIcon path="M4 6a1 1 0 1 1 0-2h16a1 1 0 1 1 0 2H4zm0 7a1 1 0 1 1 0-2h16a1 1 0 1 1 0 2H4zm0 7a1 1 0 1 1 0-2h16a1 1 0 1 1 0 2H4z" />
-          </button>
-
-          <div className={`ultra-feed-corner-menu ${menuOpen ? "is-open" : ""}`}>
-            <div className="ultra-feed-corner-menu-section">
-              <span className="ultra-feed-menu-title">Navigation</span>
-              <nav>
-                {menuItems.map((item) => (
-                  <Link
-                    href={item.href}
-                    key={item.href}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </div>
-
-            <button
-              className="ultra-feed-menu-utility"
-              onClick={() => {
-                void logout();
-                setMenuOpen(false);
-              }}
-              type="button"
-            >
-              Log out
-            </button>
-          </div>
-        </div>
-      </header>
+          ) : null
+        }
+        navItems={menuItems}
+        onLogout={logout}
+        onMenuOpenChange={(open) => {
+          if (open) {
+            setFilterOpen(false);
+          }
+        }}
+        onRoleChange={setActiveRole}
+        roles={dashboard?.roles ?? []}
+        showFeedButton={false}
+        showMessagesButton
+        title={pageLabel}
+      />
 
       <main className="ultra-feed-main">
         {error ? <div className="ultra-feed-alert">{error}</div> : null}

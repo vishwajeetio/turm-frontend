@@ -1,1 +1,52 @@
-<svg width="800" height="800" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="#fff"/><g stroke="#f51e31" stroke-width="2.6"><path d="M5 11.56c0-1.358 0-2.037.274-2.634.275-.597.79-1.038 1.821-1.922l1-.857C9.96 4.55 10.89 3.75 12 3.75s2.041.799 3.905 2.396l1 .857c1.03.884 1.546 1.325 1.82 1.922.275.597.275 1.276.275 2.634V15.8c0 1.886 0 2.828-.586 3.414S16.886 19.8 15 19.8H9c-1.886 0-2.828 0-3.414-.586S5 17.686 5 15.8z"/><path d="M14.5 19.8v-5a1 1 0 0 0-1-1h-3a1 1 0 0 0-1 1v5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="turmRibbonA" x1="94" y1="62" x2="316" y2="438" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#BFFFF2"/>
+      <stop offset="0.42" stop-color="#61F1D5"/>
+      <stop offset="1" stop-color="#159FB8"/>
+    </linearGradient>
+    <linearGradient id="turmRibbonB" x1="432" y1="88" x2="180" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#BFFFF2"/>
+      <stop offset="0.44" stop-color="#6BF0D7"/>
+      <stop offset="1" stop-color="#1AA8C1"/>
+    </linearGradient>
+    <filter id="turmGlow" x="0" y="0" width="512" height="512" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="26" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0.92 0 0 1 0 0.82 0 0 0 0.34 0"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#turmGlow)" opacity="0.9">
+    <path
+      d="M74 350C74 291 92 243 131 192L203 97C237 52 296 52 329 98C363 144 369 205 346 253C319 311 284 358 240 411C202 456 133 452 96 406C81 386 74 369 74 350Z"
+      stroke="#62F2D6"
+      stroke-width="34"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.95"
+    />
+    <path
+      d="M235 259C273 209 311 165 350 124C392 79 444 70 471 101C500 135 494 192 457 246L390 344C353 398 318 437 273 439C235 441 206 408 171 355L62 190C31 143 31 89 60 60"
+      stroke="#7BF8E0"
+      stroke-width="30"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.55"
+    />
+  </g>
+
+  <path
+    d="M78 349C78 293 95 247 132 197L203 102C236 58 293 59 325 102C357 145 363 203 341 249C316 303 282 349 239 401C202 445 136 441 101 397C86 378 78 364 78 349Z"
+    stroke="url(#turmRibbonA)"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M228 260C267 212 307 168 347 127C389 84 440 77 468 108C496 140 491 195 455 247L388 343C352 394 318 430 275 431C238 432 208 401 174 350L70 199C40 154 40 102 67 74"
+    stroke="url(#turmRibbonB)"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

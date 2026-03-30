@@ -117,17 +117,14 @@ function LikesGridCard({
   return (
     <button className="likes-grid-card" onClick={onOpen} type="button">
       <div className="likes-grid-card-media">
-        <img
-          alt={item.counterpart_name}
-          src={imageSrc}
-        />
-      </div>
-      <div className="likes-grid-card-body">
-        <strong>{item.counterpart_name}</strong>
-        <p>{item.headline}</p>
-        <div className="inline-meta" style={{ marginTop: 10 }}>
-          <span className="mini-chip">{item.counterpart_role.toLowerCase()}</span>
-          <span className="mini-chip">{item.city}</span>
+        <img alt={item.counterpart_name} src={imageSrc} />
+        <div className="likes-grid-card-body">
+          <strong>{item.counterpart_name}</strong>
+          <p>{item.headline}</p>
+          <div className="likes-grid-meta-row">
+            <span className="mini-chip">{item.counterpart_role.toLowerCase()}</span>
+            <span className="mini-chip">{item.city}</span>
+          </div>
         </div>
       </div>
     </button>

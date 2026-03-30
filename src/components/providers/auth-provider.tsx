@@ -274,6 +274,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setDashboard(null);
     setActiveRoleState(null);
     setAuthOpen(false);
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
   }, []);
 
   const value = useMemo<AuthContextValue>(

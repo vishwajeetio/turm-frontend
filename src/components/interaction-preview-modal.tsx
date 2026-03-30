@@ -71,39 +71,41 @@ export function InteractionPreviewModal({
           </button>
         </header>
 
-        {preview.kind === "LISTING" ? (
-          <PropertyFeedCard
-            activeImageIndex={preview.activeImageIndex}
-            chips={preview.chips}
-            detailsFooter={preview.detailsFooter}
-            fallbackReason={preview.fallbackReason}
-            floatingActions={preview.floatingActions}
-            headline={preview.headline}
-            localityLine={preview.localityLine}
-            media={preview.media}
-            mobileDetailsExpanded={preview.mobileDetailsExpanded}
-            onImageIndexChange={preview.onImageIndexChange}
-            onMobileDetailsExpandedChange={preview.onMobileDetailsExpandedChange}
-            reasons={preview.reasons}
-            score={preview.score}
-            stats={preview.stats}
-          />
-        ) : (
-          <TenantFeedCard
-            avatarAlt={preview.avatarAlt}
-            avatarSrc={preview.avatarSrc}
-            chips={preview.chips}
-            detailsFooter={preview.detailsFooter}
-            floatingActions={preview.floatingActions}
-            headline={preview.headline}
-            mobileDetailsExpanded={preview.mobileDetailsExpanded}
-            onMobileDetailsExpandedChange={preview.onMobileDetailsExpandedChange}
-            score={preview.score}
-            sections={preview.sections}
-            stats={preview.stats}
-            subheadline={preview.subheadline}
-          />
-        )}
+        <div className="preview-modal-body">
+          {preview.kind === "LISTING" ? (
+            <PropertyFeedCard
+              activeImageIndex={preview.activeImageIndex}
+              chips={preview.chips}
+              detailsFooter={preview.detailsFooter}
+              fallbackReason={preview.fallbackReason}
+              floatingActions={preview.floatingActions}
+              headline={preview.headline}
+              localityLine={preview.localityLine}
+              media={preview.media}
+              mobileDetailsExpanded={preview.mobileDetailsExpanded}
+              onImageIndexChange={preview.onImageIndexChange}
+              onMobileDetailsExpandedChange={preview.onMobileDetailsExpandedChange}
+              reasons={preview.reasons}
+              score={preview.score}
+              stats={preview.stats}
+            />
+          ) : (
+            <TenantFeedCard
+              avatarAlt={preview.avatarAlt}
+              avatarSrc={preview.avatarSrc}
+              chips={preview.chips}
+              detailsFooter={preview.detailsFooter}
+              floatingActions={preview.floatingActions}
+              headline={preview.headline}
+              mobileDetailsExpanded={preview.mobileDetailsExpanded}
+              onMobileDetailsExpandedChange={preview.onMobileDetailsExpandedChange}
+              score={preview.score}
+              sections={preview.sections}
+              stats={preview.stats}
+              subheadline={preview.subheadline}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

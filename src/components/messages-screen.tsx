@@ -121,6 +121,7 @@ export function MessagesScreen() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [matchedContextOpen, setMatchedContextOpen] = useState(false);
   const [threadAction, setThreadAction] = useState<ThreadActionKind | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionNote, setActionNote] = useState("");
@@ -176,7 +177,7 @@ export function MessagesScreen() {
     if (typeof window === "undefined") {
       return;
     }
-    const mediaQuery = window.matchMedia("(max-width: 1080px)");
+    const mediaQuery = window.matchMedia("(max-width: 1180px)");
     const syncViewport = () => setIsMobileView(mediaQuery.matches);
     syncViewport();
     mediaQuery.addEventListener("change", syncViewport);
@@ -203,6 +204,10 @@ export function MessagesScreen() {
       setError(nextError instanceof Error ? nextError.message : "Unable to load thread")
     );
   }, [activeMatchId, isMobileView, session]);
+
+  useEffect(() => {
+    setMatchedContextOpen(false);
+  }, [activeMatchId, isMobileView]);
 
   useEffect(() => {
     if (!isNotificationApiAvailable()) {
@@ -266,6 +271,7 @@ export function MessagesScreen() {
     if (!session || !thread) {
       return;
     }
+    setMatchedContextOpen(false);
     setPreviewMode("listing");
     setPreviewImageIndex(0);
     setPreviewMobileExpanded(false);
@@ -282,12 +288,14 @@ export function MessagesScreen() {
   }
 
   function openTenantPreview() {
+    setMatchedContextOpen(false);
     setPreviewMode("tenant");
     setPreviewMobileExpanded(false);
   }
 
   function openThreadAction(kind: ThreadActionKind) {
     setThreadMenuOpen(false);
+    setMatchedContextOpen(false);
     setThreadAction(kind);
     setActionBusy(false);
     setActionNote("");
@@ -403,7 +411,7 @@ export function MessagesScreen() {
               <span className="mini-chip">{thread.listing.bhk} BHK</span>
               <span className="mini-chip">{thread.listing.city}</span>
             </div>
-            <div className="messages-thread-menu-shell" ref={threadMenuRef}>
+            <div className="messages-thread-action-row">
               {isMobileView ? (
                 <button
                   className="ghost-button"
@@ -416,6 +424,23 @@ export function MessagesScreen() {
                   Back
                 </button>
               ) : null}
+              <button
+                className="ultra-feed-icon-button ultra-feed-header-action-button"
+                onClick={() => {
+                  setThreadMenuOpen(false);
+                  setMatchedContextOpen(true);
+                }}
+                type="button"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="ultra-feed-icon-svg">
+                  <path
+                    d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9zm0 4.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm1.25 9.5h-2.5v-1.5h.5V12h-1V10.5h2.5v4.75h.5z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span className="ultra-feed-action-label">Context</span>
+              </button>
+              <div className="messages-thread-menu-shell" ref={threadMenuRef}>
               <button
                 className="ultra-feed-icon-button"
                 onClick={() => setThreadMenuOpen((current) => !current)}
@@ -456,6 +481,7 @@ export function MessagesScreen() {
                   </nav>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         </div>
@@ -473,45 +499,6 @@ export function MessagesScreen() {
             </button>
           </div>
         ) : null}
-
-        <div className="surface messages-context-panel">
-          <strong>Matched context</strong>
-          <p className="section-copy" style={{ marginTop: 8 }}>
-            {thread.listing.locality ? `${thread.listing.locality}, ` : ""}
-            {thread.listing.city} · Available {formatDate(thread.listing.available_from)}
-          </p>
-          <div className="action-row" style={{ marginTop: 14 }}>
-            <button className="soft-button" onClick={() => void openListingPreview()} type="button">
-              View property
-            </button>
-            {thread.tenant_preview ? (
-              <button className="soft-button" onClick={openTenantPreview} type="button">
-                View tenant
-              </button>
-            ) : null}
-          </div>
-          <div className="messages-context-grid">
-            <article>
-              <span>Visit</span>
-              <strong>{thread.visit_status ? thread.visit_status.replaceAll("_", " ") : "Not approved yet"}</strong>
-            </article>
-            <article>
-              <span>Address</span>
-              <strong>{thread.shared_listing_address ?? "Locked until shared"}</strong>
-            </article>
-            <article>
-              <span>Contact</span>
-              <strong>
-                {thread.shared_contact_phone
-                  ? `${thread.shared_contact_name ?? thread.counterpart_name} · ${thread.shared_contact_phone}`
-                  : "Locked until shared"}
-              </strong>
-            </article>
-          </div>
-          {thread.shared_contact_email ? (
-            <div className="hint">Email: {thread.shared_contact_email}</div>
-          ) : null}
-        </div>
       </div>
 
       <div className="message-list">
@@ -574,6 +561,7 @@ export function MessagesScreen() {
         </div>
       ) : null}
 
+      <div className={`messages-screen-shell ${isMobileView && activeConversation ? "is-thread-open" : ""}`}>
       <div className="messages-layout">
         <section className="surface list-panel">
           <div className="page-header" style={{ marginBottom: 6 }}>
@@ -620,7 +608,69 @@ export function MessagesScreen() {
         {!isMobileView ? threadPanel : null}
       </div>
 
-      {isMobileView && activeConversation ? threadPanel : null}
+      {isMobileView && activeConversation ? (
+        <div className="messages-mobile-overlay">{threadPanel}</div>
+      ) : null}
+      </div>
+
+      {matchedContextOpen && thread ? (
+        <div className="properties-modal-backdrop" onClick={() => setMatchedContextOpen(false)}>
+          <section
+            className="properties-modal-card messages-context-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <strong>Matched context</strong>
+                <p className="section-copy" style={{ marginTop: 6 }}>
+                  {thread.listing.locality ? `${thread.listing.locality}, ` : ""}
+                  {thread.listing.city} · Available {formatDate(thread.listing.available_from)}
+                </p>
+              </div>
+              <button
+                className="ghost-button"
+                onClick={() => setMatchedContextOpen(false)}
+                type="button"
+              >
+                Minimize
+              </button>
+            </header>
+            <div className="messages-context-panel">
+              <div className="action-row">
+                <button className="soft-button" onClick={() => void openListingPreview()} type="button">
+                  View property
+                </button>
+                {thread.tenant_preview ? (
+                  <button className="soft-button" onClick={openTenantPreview} type="button">
+                    View tenant
+                  </button>
+                ) : null}
+              </div>
+              <div className="messages-context-grid">
+                <article>
+                  <span>Visit</span>
+                  <strong>{thread.visit_status ? thread.visit_status.replaceAll("_", " ") : "Not approved yet"}</strong>
+                </article>
+                <article>
+                  <span>Address</span>
+                  <strong>{thread.shared_listing_address ?? "Locked until shared"}</strong>
+                </article>
+                <article>
+                  <span>Contact</span>
+                  <strong>
+                    {thread.shared_contact_phone
+                      ? `${thread.shared_contact_name ?? thread.counterpart_name} · ${thread.shared_contact_phone}`
+                      : "Locked until shared"}
+                  </strong>
+                </article>
+              </div>
+              {thread.shared_contact_email ? (
+                <div className="hint">Email: {thread.shared_contact_email}</div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {thread && previewMode === "listing" ? (
         <InteractionPreviewModal

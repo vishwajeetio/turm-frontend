@@ -1,7 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+
+import { PublicSiteShell } from "@/components/public-site-shell";
 
 const featureRows = [
   {
@@ -29,38 +30,11 @@ const benefits = [
 
 export function LandingPage() {
   return (
-    <div className="page-shell" style={{ padding: "28px 0 54px" }}>
-      <header className="ultra-feed-header" style={{ marginBottom: 14 }}>
-        <div className="ultra-feed-header-left">
-          <span className="ultra-feed-brand-mark">T</span>
-          <div>
-            <strong>Turm</strong>
-            <span>Rental discovery tuned for speed.</span>
-          </div>
-        </div>
-        <div className="inline-stack">
-          <Link className="ultra-feed-secondary-button" href="/pricing">
-            Pricing
-          </Link>
-          <Link className="ultra-feed-primary-button" href="/login">
-            Start with OTP
-          </Link>
-        </div>
-      </header>
-
+    <PublicSiteShell>
       <section className="hero-panel">
         <div className="hero-layout">
           <div className="hero-copy">
-            <div className="hero-brand" style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div className="logo-tile">
-                <Image src="/brand-mark.svg" alt="Turm" width={56} height={56} />
-              </div>
-              <div>
-                <strong>Turm</strong>
-                <span>Monthly rentals that match faster.</span>
-              </div>
-            </div>
-            <div className="eyebrow" style={{ marginTop: 20 }}>India rental matchmaking</div>
+            <div className="eyebrow" style={{ marginTop: 0 }}>India rental matchmaking</div>
             <h1 style={{ fontSize: "clamp(3.8rem, 11vw, 7rem)", marginTop: 0 }}>
               Swipe into your
               <br />
@@ -144,6 +118,6 @@ export function LandingPage() {
           ))}
         </div>
       </section>
-    </div>
+    </PublicSiteShell>
   );
 }

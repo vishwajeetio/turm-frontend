@@ -521,6 +521,7 @@ export async function getTenantFeed(
     listing_id: string;
     offset: number;
     limit?: number;
+    exclude_tenant_profile_ids?: string[];
     session_id?: string;
     client_platform?: string;
     min_salary_inr?: number | null;
