@@ -24,9 +24,9 @@ export function SiteLogoLink({
           width={42}
         />
       </span>
-      <div>
-        <strong>{brandLabel}</strong>
-        {pageLabel ? <span>{pageLabel}</span> : null}
+      <div className="site-logo-copy">
+        <strong className="site-logo-brand-label">{brandLabel}</strong>
+        {pageLabel ? <span className="site-logo-page-label">{pageLabel}</span> : null}
       </div>
     </Link>
   );
