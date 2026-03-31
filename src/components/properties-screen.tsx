@@ -16,6 +16,7 @@ import { AuthRequired } from "@/components/auth-required";
 import { MapboxLocationPicker } from "@/components/mapbox-location-picker";
 import { PropertyFeedCard, type PropertyFeedCardMediaSlide } from "@/components/property-feed-card";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useUiBlocker } from "@/components/providers/ui-blocker-provider";
 import {
   createListing,
   createProperty,
@@ -45,7 +46,7 @@ import { splitCsv } from "@/lib/utils";
 const MAX_TAG_LENGTH = 30;
 const DEFAULT_CITY = "Ahmedabad";
 const DEFAULT_STATE = "Gujarat";
-const DRAFT_AUTOSAVE_DELAY_MS = 800;
+const DRAFT_AUTOSAVE_DELAY_MS = 1400;
 
 const PROPERTY_TYPE_OPTIONS = [
   { value: "APARTMENT", label: "Apartment" },
@@ -400,6 +401,7 @@ function sortManagedListings(items: ManagedListingCardResponse[]) {
 
 export function PropertiesScreen() {
   const { activeRole, dashboard, loading, session } = useAuth();
+  const { withUiBlock } = useUiBlocker();
   const { queuePrefetchMany, resolveUrl } = useSecureMediaCache({ concurrency: 4 });
   const [amenities, setAmenities] = useState<AmenityResponse[]>([]);
   const [listings, setListings] = useState<ManagedListingCardResponse[]>([]);
@@ -422,6 +424,7 @@ export function PropertiesScreen() {
   const [previewMobileDetailsExpanded, setPreviewMobileDetailsExpanded] = useState(false);
   const [deletePropertyModalOpen, setDeletePropertyModalOpen] = useState(false);
   const [deletePropertyInput, setDeletePropertyInput] = useState("");
+  const [brokerageInputWarning, setBrokerageInputWarning] = useState<string | null>(null);
   const propertyMenuRef = useRef<HTMLDivElement | null>(null);
   const cropFrameRef = useRef<HTMLDivElement | null>(null);
   const cropPointerStateRef = useRef<{
@@ -449,8 +452,18 @@ export function PropertiesScreen() {
   const hydratingRef = useRef(false);
   const propertyAutosaveTimerRef = useRef<number | null>(null);
   const listingAutosaveTimerRef = useRef<number | null>(null);
+  const propertyAutosaveBusyRef = useRef(false);
+  const listingAutosaveBusyRef = useRef(false);
+  const queuedPropertyAutosaveRef = useRef<PropertyCreate | null>(null);
+  const queuedListingAutosaveRef = useRef<{
+    draft: ListingCreate;
+    statusOverride?: ListingCreate["status"];
+  } | null>(null);
+  const lastPersistedPropertySignatureRef = useRef<string | null>(null);
+  const lastPersistedListingSignatureRef = useRef<string | null>(null);
 
   const canManage = activeRole === "OWNER" || activeRole === "BROKER";
+  const isBrokerMode = activeRole === "BROKER";
   const isPremium = dashboard?.active_subscription.plan_code === "PREMIUM";
   const roomOptions = useMemo(() => buildRoomOptions(propertyDraft), [propertyDraft]);
   const [slotEditor, setSlotEditor] = useState<MediaSlotEditorState>(() =>
@@ -518,17 +531,16 @@ export function PropertiesScreen() {
     if (!session || !dashboard || !canManage) {
       return;
     }
-    void Promise.all([getAmenities(session), listMyListings(session)])
-      .then(([amenityItems, managedListings]) => {
-        const nextListings = sortManagedListings(managedListings);
-        setAmenities(amenityItems);
-        setListings(nextListings);
-        setSelectedListingId((current) => current ?? nextListings[0]?.listing_id ?? null);
-      })
-      .catch((nextError) =>
-        setError(nextError instanceof Error ? nextError.message : "Unable to load property manager")
-      );
-  }, [canManage, dashboard, session]);
+    void withUiBlock("Loading your property workspace...", async () => {
+      const [amenityItems, managedListings] = await Promise.all([getAmenities(session), listMyListings(session)]);
+      const nextListings = sortManagedListings(managedListings);
+      setAmenities(amenityItems);
+      setListings(nextListings);
+      setSelectedListingId((current) => current ?? nextListings[0]?.listing_id ?? null);
+    }).catch((nextError) =>
+      setError(nextError instanceof Error ? nextError.message : "Unable to load property manager")
+    );
+  }, [canManage, dashboard, session, withUiBlock]);
 
   function resetToNewDraft() {
     setWorkingPropertyId(null);
@@ -552,11 +564,13 @@ export function PropertiesScreen() {
     }
     hydratingRef.current = true;
     const response = await getListingEditor(session, listingId);
+    const nextChargesDraft = hydrateChargesDraft(response.listing);
+    const nextMediaAssets = sortAssets(response.media_assets);
     setPropertyDraft(response.property);
     setListingDraft(response.listing);
     setWorkingPropertyId(response.listing.property_id);
-    setPropertyMediaAssets(sortAssets(response.media_assets));
-    setChargesDraft(hydrateChargesDraft(response.listing));
+    setPropertyMediaAssets(nextMediaAssets);
+    setChargesDraft(nextChargesDraft);
     setPreviewImageIndex(0);
     setPreviewMobileDetailsExpanded(false);
     setEditMode(response.listing.status === "DRAFT");
@@ -564,6 +578,30 @@ export function PropertiesScreen() {
     setSlotEditor(defaultMediaSlotEditor(roomOptions[0]?.value ?? "ENTRY"));
     setDeletePropertyModalOpen(false);
     setDeletePropertyInput("");
+    setBrokerageInputWarning(null);
+    lastPersistedPropertySignatureRef.current = JSON.stringify({
+      ...response.property,
+      extra_data: {
+        ...response.property.extra_data,
+        is_top_floor: response.property.floor_number === response.property.total_floors
+      }
+    });
+    lastPersistedListingSignatureRef.current = JSON.stringify({
+      ...response.listing,
+      property_id: response.listing.property_id,
+      security_deposit_inr: response.listing.security_deposit_inr,
+      media_asset_ids: nextMediaAssets
+        .filter((asset) => asset.media_type === "IMAGE")
+        .map((asset) => asset.id),
+      additional_charges: serializeChargesDraft(nextChargesDraft),
+      extra_data: {
+        ...response.listing.extra_data,
+        visibility_mode: String((response.listing.extra_data ?? {}).visibility_mode ?? "PUBLIC"),
+        delivery_window: nextChargesDraft.deliveryWindow,
+        parking_covered: nextChargesDraft.parkingCovered,
+        power_backup_included: nextChargesDraft.powerBackupIncluded
+      }
+    });
     window.setTimeout(() => {
       hydratingRef.current = false;
     }, 0);
@@ -580,11 +618,11 @@ export function PropertiesScreen() {
     if (!session) {
       return;
     }
-    void reloadEditor(selectedListingId).catch((nextError) =>
+    void withUiBlock("Loading property details...", () => reloadEditor(selectedListingId)).catch((nextError) =>
       setError(nextError instanceof Error ? nextError.message : "Unable to load listing editor")
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRole, dashboard?.user.id, selectedListingId, session]);
+  }, [activeRole, dashboard?.user.id, selectedListingId, session, withUiBlock]);
 
   useEffect(() => {
     if (!slotEditor.open) {
@@ -659,14 +697,15 @@ export function PropertiesScreen() {
     setError(null);
     setStatus("Creating draft property...");
     try {
-      const createdProperty = await createProperty(session, propertyTemplate);
-      const createdListing = await createListing(session, {
-        ...listingTemplate,
-        property_id: createdProperty.id
+      await withUiBlock("Creating draft property...", async () => {
+        const createdProperty = await createProperty(session, propertyTemplate);
+        const createdListing = await createListing(session, {
+          ...listingTemplate,
+          property_id: createdProperty.id
+        });
+        await refreshListings(createdListing.id);
+        setPropertyMenuOpen(false);
       });
-      await refreshListings(createdListing.id);
-      await reloadEditor(createdListing.id);
-      setPropertyMenuOpen(false);
       setStatus("Draft created. We auto-save as you edit.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to create property draft");
@@ -1179,16 +1218,37 @@ export function PropertiesScreen() {
     if (!session || !workingPropertyId) {
       return;
     }
-    const isTopFloor =
-      (nextDraft.floor_number ?? 0) > 0 &&
-      nextDraft.floor_number === nextDraft.total_floors;
-    await updateProperty(session, workingPropertyId, {
+    const payload = {
       ...nextDraft,
       extra_data: {
         ...nextDraft.extra_data,
-        is_top_floor: isTopFloor
+        is_top_floor:
+          (nextDraft.floor_number ?? 0) > 0 &&
+          nextDraft.floor_number === nextDraft.total_floors
       }
-    });
+    };
+    const signature = JSON.stringify(payload);
+    if (lastPersistedPropertySignatureRef.current === signature) {
+      return;
+    }
+    if (propertyAutosaveBusyRef.current) {
+      queuedPropertyAutosaveRef.current = nextDraft;
+      return;
+    }
+    propertyAutosaveBusyRef.current = true;
+    try {
+      await updateProperty(session, workingPropertyId, payload);
+      lastPersistedPropertySignatureRef.current = signature;
+    } finally {
+      propertyAutosaveBusyRef.current = false;
+    }
+    const queuedDraft = queuedPropertyAutosaveRef.current;
+    if (queuedDraft) {
+      queuedPropertyAutosaveRef.current = null;
+      if (queuedDraft !== nextDraft) {
+        await persistPropertyDraft(queuedDraft);
+      }
+    }
   }
 
   async function persistListingDraft(nextDraft: ListingCreate, statusOverride?: ListingCreate["status"]) {
@@ -1209,7 +1269,7 @@ export function PropertiesScreen() {
     const normalizedDeposit = Math.max(0, Math.min(nextDraft.security_deposit_inr, maxSecurityDeposit));
     const nextStatus = statusOverride ?? nextDraft.status;
     const nextVisibility = privateVisibilityEnabled ? "PRIVATE" : "PUBLIC";
-    await updateListing(session, selectedListingId, {
+    const payload = {
       ...nextDraft,
       property_id: workingPropertyId,
       status: nextStatus,
@@ -1223,7 +1283,29 @@ export function PropertiesScreen() {
         parking_covered: chargesDraft.parkingCovered,
         power_backup_included: chargesDraft.powerBackupIncluded
       }
-    });
+    };
+    const signature = JSON.stringify(payload);
+    if (lastPersistedListingSignatureRef.current === signature) {
+      return;
+    }
+    if (listingAutosaveBusyRef.current) {
+      queuedListingAutosaveRef.current = { draft: nextDraft, statusOverride };
+      return;
+    }
+    listingAutosaveBusyRef.current = true;
+    try {
+      await updateListing(session, selectedListingId, payload);
+      lastPersistedListingSignatureRef.current = signature;
+    } finally {
+      listingAutosaveBusyRef.current = false;
+    }
+    const queuedDraft = queuedListingAutosaveRef.current;
+    if (queuedDraft) {
+      queuedListingAutosaveRef.current = null;
+      if (queuedDraft.draft !== nextDraft || queuedDraft.statusOverride !== statusOverride) {
+        await persistListingDraft(queuedDraft.draft, queuedDraft.statusOverride);
+      }
+    }
     setListings((current) =>
       current.map((listing) =>
         listing.listing_id === selectedListingId
@@ -1287,15 +1369,19 @@ export function PropertiesScreen() {
     setError(null);
     setStatus(isDraftListing ? "Creating listing..." : "Updating listing...");
     try {
-      await persistListingDraft(
-        {
-          ...listingDraft,
-          status: nextStatus
-        },
-        nextStatus
+      await withUiBlock(
+        isDraftListing ? "Creating your listing preview..." : "Updating your listing preview...",
+        async () => {
+          await persistListingDraft(
+            {
+              ...listingDraft,
+              status: nextStatus
+            },
+            nextStatus
+          );
+          await refreshListings(selectedListingId);
+        }
       );
-      await refreshListings(selectedListingId);
-      await reloadEditor(selectedListingId);
       setEditMode(false);
       setCurrentStep(3);
       setPreviewImageIndex(0);
@@ -1316,11 +1402,13 @@ export function PropertiesScreen() {
     setError(null);
     setStatus("Deleting property...");
     try {
-      await deleteProperty(session, workingPropertyId);
-      setDeletePropertyModalOpen(false);
-      setDeletePropertyInput("");
-      resetToNewDraft();
-      await refreshListings();
+      await withUiBlock("Deleting property...", async () => {
+        await deleteProperty(session, workingPropertyId);
+        setDeletePropertyModalOpen(false);
+        setDeletePropertyInput("");
+        resetToNewDraft();
+        await refreshListings();
+      });
       setStatus("Property deleted.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to delete property");
@@ -2073,21 +2161,43 @@ export function PropertiesScreen() {
                     </div>
 
                     <div className="field-grid">
-                      <div className="form-field">
-                        <label>Brokerage %</label>
-                        <input
-                          className="input"
-                          inputMode="decimal"
-                          type="number"
-                          value={listingDraft.brokerage_percentage ?? ""}
-                          onChange={(event) =>
-                            setListingDraft({
-                              ...listingDraft,
-                              brokerage_percentage: Number(event.target.value) || null
-                            })
-                          }
-                        />
-                      </div>
+                      {isBrokerMode ? (
+                        <div className="form-field">
+                          <label>Brokerage %</label>
+                          <input
+                            className="input"
+                            inputMode="decimal"
+                            max={50}
+                            min={0}
+                            step="0.01"
+                            type="number"
+                            value={listingDraft.brokerage_percentage ?? ""}
+                            onChange={(event) => {
+                              const rawValue = Number(event.target.value);
+                              const hasValue = Number.isFinite(rawValue) && event.target.value !== "";
+                              const clampedValue = hasValue
+                                ? Math.max(0, Math.min(rawValue, 50))
+                                : null;
+                              setBrokerageInputWarning(
+                                hasValue && rawValue > 50
+                                  ? "Brokerage cannot exceed 50% of the monthly rent."
+                                  : null
+                              );
+                              setListingDraft({
+                                ...listingDraft,
+                                brokerage_percentage: clampedValue
+                              });
+                            }}
+                          />
+                          <div
+                            className="hint"
+                            style={brokerageInputWarning ? { color: "#ffd77a" } : undefined}
+                          >
+                            {brokerageInputWarning ??
+                              "Brokerage is broker-only and capped at 50% of one month rent."}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="form-field">
                         <label>Status</label>
                         <select

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { useUiBlocker } from "@/components/providers/ui-blocker-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import type { RoleType } from "@/lib/types";
 
@@ -34,6 +35,7 @@ export function AuthFlowCard({
     requestOtp,
     verifyOtp,
   } = useAuth();
+  const { withUiBlock } = useUiBlocker();
   const router = useRouter();
 
   const [phoneNumber, setPhoneNumber] = useState("+91");
@@ -50,12 +52,14 @@ export function AuthFlowCard({
 
   function finishFlow() {
     onSuccess?.();
-    if (typeof window !== "undefined") {
-      window.location.assign(resolvedNextPath);
-      return;
-    }
-    router.push(resolvedNextPath);
-    router.refresh();
+    void withUiBlock("Opening your dashboard...", async () => {
+      if (typeof window !== "undefined") {
+        window.location.assign(resolvedNextPath);
+        await new Promise(() => {});
+      }
+      router.push(resolvedNextPath);
+      router.refresh();
+    });
   }
 
   async function handleRequestOtp(event: FormEvent) {

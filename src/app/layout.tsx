@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { AppExperiencePrompt } from "@/components/app-experience-prompt";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { UiBlockerProvider } from "@/components/providers/ui-blocker-provider";
 import { AuthSheet } from "@/components/auth-sheet";
 import { getSiteUrl } from "@/lib/site";
 
@@ -44,11 +45,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <AuthProvider>
-          {children}
-          <AuthSheet />
-          <AppExperiencePrompt />
-        </AuthProvider>
+        <UiBlockerProvider>
+          <AuthProvider>
+            {children}
+            <AuthSheet />
+            <AppExperiencePrompt />
+          </AuthProvider>
+        </UiBlockerProvider>
       </body>
     </html>
   );
