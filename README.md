@@ -30,6 +30,26 @@ NODE_ENV=production
    `turm.in` and optionally `www.turm.in`
 5. Deploy.
 
+### Vercel 404 troubleshooting
+
+If Vercel shows this plain platform error:
+
+```text
+404: NOT_FOUND
+Code: NOT_FOUND
+```
+
+that usually means Vercel is not serving this Next.js app at all, even though the app has a real `/` route in `src/app/page.tsx`.
+
+Check these first:
+
+1. The deployed project root is correct.
+   For a split frontend repo, the repo root should contain `package.json`, `src/`, `public/`, and `vercel.json`.
+2. If you deployed the monorepo, `Root Directory` must be `frontend`.
+3. The custom domain is attached to the correct project and latest production deployment.
+4. The framework preset is `Next.js`.
+5. The build logs show generated routes including `/`.
+
 ### Important notes
 
 - `NEXT_PUBLIC_API_BASE_URL` is used by the browser.
