@@ -18,7 +18,6 @@ NEXT_PUBLIC_SITE_URL=https://turm.in
 SITE_URL=https://turm.in
 
 NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN=pk...
-NODE_ENV=production
 ```
 
 ### Vercel setup
@@ -49,6 +48,10 @@ Check these first:
 3. The custom domain is attached to the correct project and latest production deployment.
 4. The framework preset is `Next.js`.
 5. The build logs show generated routes including `/`.
+
+Do not manually add `NODE_ENV=production` in Vercel project environment variables.
+Vercel already sets the correct mode, and forcing it during install can skip devDependencies
+like `typescript`, `@types/react`, and `@types/node`.
 
 ### Important notes
 
