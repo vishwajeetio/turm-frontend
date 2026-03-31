@@ -12,6 +12,7 @@ export type SubscriptionPlanCode = "FREE" | "PREMIUM";
 export type MatchStatus = "ACTIVE" | "BLOCKED" | "CLOSED" | "EXPIRED";
 export type SwipeActionType = "LIKE" | "PASS" | "SUPERLIKE";
 export type MediaType = "IMAGE" | "VIDEO" | "FLOOR_PLAN" | "DOCUMENT";
+export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "SYSTEM" | "AGREEMENT" | "LISTING_SHARE";
 
 export interface UserResponse {
   id: string;
@@ -342,8 +343,9 @@ export interface ChatMessageResponse {
   sender_user_id: string;
   sender_name: string;
   is_mine: boolean;
-  message_type: string;
+  message_type: MessageType;
   text_body?: string | null;
+  media_preview?: MediaPreviewResponse | null;
   created_at: string;
   delivered_at?: string | null;
   read_at?: string | null;

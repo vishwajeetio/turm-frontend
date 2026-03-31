@@ -12,6 +12,8 @@ export function AppShell({
   actions: _actions,
   headerActions,
   showHero: _showHero = true,
+  contentClassName,
+  viewportMode = "default",
   children
 }: {
   title: string;
@@ -26,6 +28,8 @@ export function AppShell({
         setMenuOpen: (next: boolean | ((current: boolean) => boolean)) => void;
       }) => React.ReactNode);
   showHero?: boolean;
+  contentClassName?: string;
+  viewportMode?: "default" | "locked";
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -50,7 +54,11 @@ export function AppShell({
   ];
 
   return (
-    <div className="app-shell-modern">
+    <div
+      className={`app-shell-modern ${
+        viewportMode === "locked" ? "app-shell-modern-locked" : ""
+      }`.trim()}
+    >
       <DashboardHeader
         activeRole={activeRole}
         brandLabel={brandLabel}
@@ -64,8 +72,18 @@ export function AppShell({
         title={title}
       />
 
-      <main className="app-shell-main-modern">
-        <section className="app-shell-page-content">{children}</section>
+      <main
+        className={`app-shell-main-modern ${
+          viewportMode === "locked" ? "app-shell-main-modern-locked" : ""
+        }`.trim()}
+      >
+        <section
+          className={`app-shell-page-content ${
+            viewportMode === "locked" ? "app-shell-page-content-locked" : ""
+          } ${contentClassName ?? ""}`.trim()}
+        >
+          {children}
+        </section>
       </main>
     </div>
   );

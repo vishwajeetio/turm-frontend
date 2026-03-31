@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ChangeEvent,
   type FormEvent,
   useEffect,
   useMemo,
@@ -21,6 +22,8 @@ import {
   sendMessage,
   shareMatchAddress,
   shareMatchContact,
+  unmatchCounterpart,
+  uploadMedia,
 } from "@/lib/api";
 import type {
   ConversationPreviewResponse,
@@ -35,6 +38,7 @@ type ThreadActionKind =
   | "share-contact"
   | "share-address"
   | "approve-visit"
+  | "unmatch"
   | "block"
   | "report";
 type ResolveMediaUrl = (
@@ -124,6 +128,7 @@ export function MessagesScreen() {
   const [matchedContextOpen, setMatchedContextOpen] = useState(false);
   const [threadAction, setThreadAction] = useState<ThreadActionKind | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [composerUploading, setComposerUploading] = useState(false);
   const [actionNote, setActionNote] = useState("");
   const [visitMode, setVisitMode] = useState("In person");
   const [visitStartAt, setVisitStartAt] = useState("");
@@ -134,6 +139,8 @@ export function MessagesScreen() {
   const { queuePrefetch, queuePrefetchMany, resolveUrl } = useSecureMediaCache({ concurrency: 4 });
 
   const threadMenuRef = useRef<HTMLDivElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewSlides = useMemo(
     () => (thread ? buildListingSlides(thread, previewMedia, resolveUrl) : []),
     [previewMedia, resolveUrl, thread]
@@ -177,7 +184,7 @@ export function MessagesScreen() {
     if (typeof window === "undefined") {
       return;
     }
-    const mediaQuery = window.matchMedia("(max-width: 1180px)");
+    const mediaQuery = window.matchMedia("(max-width: 1040px)");
     const syncViewport = () => setIsMobileView(mediaQuery.matches);
     syncViewport();
     mediaQuery.addEventListener("change", syncViewport);
@@ -248,7 +255,24 @@ export function MessagesScreen() {
     if (thread.tenant_preview?.profile_image) {
       queuePrefetch(thread.tenant_preview.profile_image, 240);
     }
-  }, [queuePrefetch, thread]);
+    queuePrefetchMany(
+      thread.messages
+        .flatMap((message) => (message.media_preview ? [message.media_preview] : []))
+        .slice(-12),
+      220
+    );
+  }, [queuePrefetch, queuePrefetchMany, thread]);
+
+  useEffect(() => {
+    if (!thread || !messageListRef.current) {
+      return;
+    }
+    const container = messageListRef.current;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [thread?.conversation_id, thread?.messages.length]);
 
   useEffect(() => {
     if (previewMode !== "listing" || !previewMedia.length) {
@@ -329,6 +353,14 @@ export function MessagesScreen() {
           meeting_point: meetingPoint.trim() || null,
           owner_notes: actionNote.trim() || null,
         });
+      } else if (threadAction === "unmatch") {
+        await unmatchCounterpart(session, thread.match.match_id);
+        setThreadAction(null);
+        setDraft("");
+        await refreshConversations(null);
+        setActiveMatchId(null);
+        setThread(null);
+        return;
       } else if (threadAction === "block") {
         await blockMatchCounterpart(session, thread.match.match_id, {
           reason: actionNote.trim() || undefined,
@@ -355,8 +387,7 @@ export function MessagesScreen() {
     }
   }
 
-  async function handleSendMessage(event: FormEvent) {
-    event.preventDefault();
+  async function submitDraftMessage() {
     if (!session || !thread || !dashboard?.user.id || !draft.trim()) {
       return;
     }
@@ -376,6 +407,64 @@ export function MessagesScreen() {
       setError(nextError instanceof Error ? nextError.message : "Unable to send message");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleSendMessage(event: FormEvent) {
+    event.preventDefault();
+    await submitDraftMessage();
+  }
+
+  async function handleComposerFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !session || !thread || !dashboard?.user.id) {
+      return;
+    }
+
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    if (!isImage && !isVideo) {
+      setError("Only images and videos can be shared in messages.");
+      event.target.value = "";
+      return;
+    }
+
+    const maxBytes = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setError(
+        isVideo
+          ? "Videos must stay within 100 MB."
+          : "Images must stay within 20 MB."
+      );
+      event.target.value = "";
+      return;
+    }
+
+    setComposerUploading(true);
+    setError(null);
+    try {
+      const uploaded = await uploadMedia(session, {
+        file,
+        targetType: "MESSAGE",
+        targetId: thread.conversation_id,
+        mediaType: isVideo ? "VIDEO" : "IMAGE",
+      });
+      await sendMessage(session, thread.match.match_id, {
+        sender_user_id: dashboard.user.id,
+        text_body: draft.trim() || null,
+        media_asset_id: uploaded.media_asset_id,
+        message_type: isVideo ? "VIDEO" : "IMAGE",
+      });
+      await Promise.all([
+        refreshConversations(thread.match.match_id),
+        loadThread(thread.match.match_id),
+      ]);
+      setDraft("");
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Unable to upload media");
+    } finally {
+      setComposerUploading(false);
+      event.target.value = "";
     }
   }
 
@@ -424,22 +513,6 @@ export function MessagesScreen() {
                   Back
                 </button>
               ) : null}
-              <button
-                className="ultra-feed-icon-button ultra-feed-header-action-button"
-                onClick={() => {
-                  setThreadMenuOpen(false);
-                  setMatchedContextOpen(true);
-                }}
-                type="button"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="ultra-feed-icon-svg">
-                  <path
-                    d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9zm0 4.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm1.25 9.5h-2.5v-1.5h.5V12h-1V10.5h2.5v4.75h.5z"
-                    fill="currentColor"
-                  />
-                </svg>
-                <span className="ultra-feed-action-label">Context</span>
-              </button>
               <div className="messages-thread-menu-shell" ref={threadMenuRef}>
               <button
                 className="ultra-feed-icon-button"
@@ -457,6 +530,15 @@ export function MessagesScreen() {
                 <div className="ultra-feed-corner-menu-section">
                   <span className="ultra-feed-menu-title">Thread actions</span>
                   <nav>
+                    <button
+                      onClick={() => {
+                        setThreadMenuOpen(false);
+                        setMatchedContextOpen(true);
+                      }}
+                      type="button"
+                    >
+                      Matched context
+                    </button>
                     {thread.can_share_contact ? (
                       <button onClick={() => openThreadAction("share-contact")} type="button">
                         Share contact
@@ -472,6 +554,9 @@ export function MessagesScreen() {
                         Approve visit
                       </button>
                     ) : null}
+                    <button onClick={() => openThreadAction("unmatch")} type="button">
+                      Unmatch
+                    </button>
                     <button onClick={() => openThreadAction("block")} type="button">
                       Block user
                     </button>
@@ -501,7 +586,7 @@ export function MessagesScreen() {
         ) : null}
       </div>
 
-      <div className="message-list">
+      <div className="message-list" ref={messageListRef}>
         {thread.messages.length ? (
           thread.messages.map((message) => (
             <article
@@ -511,9 +596,38 @@ export function MessagesScreen() {
               key={message.id}
             >
               <strong>{message.message_type === "SYSTEM" ? "Update" : message.sender_name}</strong>
-              <p className="section-copy" style={{ marginTop: 8 }}>
-                {message.text_body}
-              </p>
+              {message.media_preview ? (
+                <div className="message-media-card">
+                  {message.message_type === "VIDEO" ? (
+                    <video
+                      controls
+                      playsInline
+                      preload="metadata"
+                      src={
+                        resolveUrl(
+                          message.media_preview,
+                          "https://placehold.co/720x960/09110f/f3fffb?text=Video"
+                        ) ?? "https://placehold.co/720x960/09110f/f3fffb?text=Video"
+                      }
+                    />
+                  ) : (
+                    <img
+                      alt={`${message.sender_name} shared media`}
+                      src={
+                        resolveUrl(
+                          message.media_preview,
+                          "https://placehold.co/720x960/09110f/f3fffb?text=Photo"
+                        ) ?? "https://placehold.co/720x960/09110f/f3fffb?text=Photo"
+                      }
+                    />
+                  )}
+                </div>
+              ) : null}
+              {message.text_body ? (
+                <p className="section-copy" style={{ marginTop: 8 }}>
+                  {message.text_body}
+                </p>
+              ) : null}
               <div className="messages-message-meta">
                 <span className="hint">{formatMessageTimestamp(message.created_at)}</span>
                 {getMessageReceiptLabel(message) ? (
@@ -528,18 +642,45 @@ export function MessagesScreen() {
       </div>
 
       <form className="thread-composer" onSubmit={handleSendMessage}>
-        <div className="field-stack">
+        <input
+          accept="image/*,video/*"
+          hidden
+          onChange={(event) => void handleComposerFileChange(event)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <div className="thread-composer-row">
+          <button
+            aria-label="Upload media"
+            className="message-attach-button"
+            disabled={composerUploading}
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            +
+          </button>
           <textarea
             className="textarea"
-            placeholder="Message about rent, move-in, visits, or charges..."
+            enterKeyHint="send"
+            placeholder="Message about rent, move-in, visits, or charges"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!busy && !composerUploading && draft.trim()) {
+                  void submitDraftMessage();
+                }
+              }
+            }}
           />
-          <div className="action-row">
-            <button className="primary-button" disabled={busy || !draft.trim()} type="submit">
-              {busy ? "Sending..." : "Send message"}
-            </button>
-          </div>
+          <button
+            className="primary-button message-send-button"
+            disabled={busy || composerUploading || !draft.trim()}
+            type="submit"
+          >
+            {busy || composerUploading ? "Sending..." : "Send"}
+          </button>
         </div>
       </form>
     </section>
@@ -551,7 +692,9 @@ export function MessagesScreen() {
 
   return (
     <AppShell
+      contentClassName="messages-page-root"
       title="Messages"
+      viewportMode="locked"
       eyebrow="Mutual-like chat"
       description="Every conversation stays anchored to the matched listing, with the same preview model available from chat."
     >
@@ -572,37 +715,39 @@ export function MessagesScreen() {
               </p>
             </div>
           </div>
-          {conversations.length ? (
-            conversations.map((conversation) => (
-              <button
-                className={`conversation-row ${
-                  activeMatchId === conversation.match_id ? "is-active" : ""
-                }`}
-                key={conversation.conversation_id}
-                onClick={() => setActiveMatchId(conversation.match_id)}
-                type="button"
-              >
-                <div className="messages-thread-row-head">
-                  <strong>{conversation.counterpart_name}</strong>
-                  {conversation.unread_count > 0 ? (
-                    <span className="message-unread-badge">{conversation.unread_count}</span>
-                  ) : null}
-                </div>
-                <p className="hint" style={{ marginTop: 6 }}>
-                  {conversation.headline}
-                </p>
-                <div className="inline-meta" style={{ marginTop: 10 }}>
-                  <span className="mini-chip">{conversation.city}</span>
-                  <span className="mini-chip">{conversation.counterpart_role.toLowerCase()}</span>
-                  {conversation.last_message_at ? (
-                    <span className="mini-chip">{formatMessageTimestamp(conversation.last_message_at)}</span>
-                  ) : null}
-                </div>
-              </button>
-            ))
-          ) : (
-            <div className="empty-panel">No chats yet. Mutual likes land here automatically.</div>
-          )}
+          <div className="messages-conversation-scroll">
+            {conversations.length ? (
+              conversations.map((conversation) => (
+                <button
+                  className={`conversation-row ${
+                    activeMatchId === conversation.match_id ? "is-active" : ""
+                  }`}
+                  key={conversation.conversation_id}
+                  onClick={() => setActiveMatchId(conversation.match_id)}
+                  type="button"
+                >
+                  <div className="messages-thread-row-head">
+                    <strong>{conversation.counterpart_name}</strong>
+                    {conversation.unread_count > 0 ? (
+                      <span className="message-unread-badge">{conversation.unread_count}</span>
+                    ) : null}
+                  </div>
+                  <p className="hint" style={{ marginTop: 6 }}>
+                    {conversation.headline}
+                  </p>
+                  <div className="inline-meta" style={{ marginTop: 10 }}>
+                    <span className="mini-chip">{conversation.city}</span>
+                    <span className="mini-chip">{conversation.counterpart_role.toLowerCase()}</span>
+                    {conversation.last_message_at ? (
+                      <span className="mini-chip">{formatMessageTimestamp(conversation.last_message_at)}</span>
+                    ) : null}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="empty-panel">No chats yet. Mutual likes land here automatically.</div>
+            )}
+          </div>
         </section>
 
         {!isMobileView ? threadPanel : null}
@@ -788,6 +933,8 @@ export function MessagesScreen() {
                       ? "Share address"
                       : threadAction === "approve-visit"
                         ? "Approve visit"
+                        : threadAction === "unmatch"
+                          ? "Unmatch user"
                         : threadAction === "block"
                           ? "Block user"
                           : "Report user"}
@@ -797,11 +944,13 @@ export function MessagesScreen() {
                     ? "Your contact details will become visible in this conversation."
                     : threadAction === "share-address"
                       ? "This reveals the exact listing address to the tenant."
-                      : threadAction === "approve-visit"
-                        ? "Confirm the visit and unlock the listing address in chat."
-                        : threadAction === "block"
-                          ? "Blocking removes this user from feed, likes, and messages."
-                          : "Reports are stored for moderation review."}
+                    : threadAction === "approve-visit"
+                      ? "Confirm the visit and unlock the listing address in chat."
+                      : threadAction === "unmatch"
+                        ? "Unmatching removes both sides from feed, likes, and messages."
+                      : threadAction === "block"
+                        ? "Blocking removes this user from feed, likes, and messages."
+                        : "Reports are stored for moderation review."}
                 </p>
               </div>
               <button className="ghost-button" onClick={() => setThreadAction(null)} type="button">
@@ -875,7 +1024,7 @@ export function MessagesScreen() {
               ) : (
                 <div className="form-field">
                   <label htmlFor="thread-action-note">
-                    {threadAction === "block" ? "Reason" : "Optional note"}
+                    {threadAction === "block" || threadAction === "unmatch" ? "Reason" : "Optional note"}
                   </label>
                   <textarea
                     className="textarea"

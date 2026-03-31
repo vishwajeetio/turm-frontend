@@ -29,6 +29,8 @@ import {
   refreshTenantFeedToken,
   swipeListing,
   swipeTenant,
+  undoListingSwipe,
+  undoTenantSwipe,
   upsertSearchPreferences
 } from "@/lib/api";
 import type {
@@ -73,11 +75,14 @@ type UndoSlot =
       mode: "listing";
       card: ListingDeckCard;
       movedDirection: SwipeDirection;
+      action: "LIKE" | "PASS";
     }
   | {
       mode: "tenant";
       card: TenantDeckCard;
       movedDirection: SwipeDirection;
+      action: "LIKE" | "PASS";
+      listingIds: string[];
     };
 
 type SwipeMotion = {
@@ -1237,11 +1242,6 @@ export function FeedScreen() {
       }));
       setBusy(true);
       setError(null);
-      setUndoSlot({
-        mode: "listing",
-        card: outgoing,
-        movedDirection
-      });
       startSwipeMotion({
         mode: "listing",
         outDirection: movedDirection,
@@ -1263,6 +1263,12 @@ export function FeedScreen() {
           listing_id: outgoing.listing_id,
           action,
           source_session_id: sessionId
+        });
+        setUndoSlot({
+          mode: "listing",
+          card: outgoing,
+          movedDirection,
+          action,
         });
         showActionFlash(action === "LIKE" ? "like" : "pass", action === "LIKE" ? "Liked" : "Disliked");
 
@@ -1326,11 +1332,6 @@ export function FeedScreen() {
       }));
       setBusy(true);
       setError(null);
-      setUndoSlot({
-        mode: "tenant",
-        card: outgoing,
-        movedDirection
-      });
       startSwipeMotion({
         mode: "tenant",
         outDirection: movedDirection,
@@ -1356,9 +1357,19 @@ export function FeedScreen() {
             })
           )
         );
-        if (swipeResults.every((result) => result.status === "rejected")) {
+        const successfulListingIds = swipeResults.flatMap((result, index) =>
+          result.status === "fulfilled" ? [selectedTenantListingIds[index]] : []
+        );
+        if (!successfulListingIds.length) {
           throw new Error("Unable to save this tenant action for selected listings.");
         }
+        setUndoSlot({
+          mode: "tenant",
+          card: outgoing,
+          movedDirection,
+          action,
+          listingIds: successfulListingIds,
+        });
         showActionFlash(action === "LIKE" ? "like" : "pass", action === "LIKE" ? "Liked" : "Disliked");
 
         if (remainingCards.length <= 2) {
@@ -1396,7 +1407,7 @@ export function FeedScreen() {
   );
 
   const runUndo = useCallback(async () => {
-    if (!undoSlot || busy) {
+    if (!undoSlot || busy || !session || !dashboard?.user.id) {
       return;
     }
     if (listingRepresentativeMode && undoSlot.mode !== "tenant") {
@@ -1411,56 +1422,98 @@ export function FeedScreen() {
 
     updateUsage((current) => ({
       ...current,
+      like:
+        undoSlot.action === "LIKE" ? Math.max(current.like - 1, 0) : current.like,
+      pass:
+        undoSlot.action === "PASS" ? Math.max(current.pass - 1, 0) : current.pass,
       undo: current.undo + 1
     }));
+    setBusy(true);
+    setError(null);
 
-    if (undoSlot.mode === "listing") {
-      const outgoing = currentListingCard;
+    try {
+      if (undoSlot.mode === "listing") {
+        if (!tenantProfile) {
+          throw new Error("Tenant profile is required to undo this action.");
+        }
+        await undoListingSwipe(session, {
+          tenant_profile_id: tenantProfile.id,
+          tenant_user_id: dashboard.user.id,
+          listing_id: undoSlot.card.listing_id,
+        });
+        const outgoing = currentListingCard;
+        const incoming = undoSlot.card;
+        const outDirection: SwipeDirection =
+          undoSlot.movedDirection === "right" ? "left" : "right";
+        startSwipeMotion({
+          mode: "listing",
+          outDirection,
+          inDirection: undoSlot.movedDirection,
+          isUndo: true,
+          listingOutgoing: outgoing,
+          listingIncoming: incoming,
+          tenantOutgoing: null,
+          tenantIncoming: null
+        });
+        setListingCards((current) => [incoming, ...current]);
+        setCurrentListingImageIndex(0);
+        showActionFlash("undo", "Previous listing");
+        setUndoSlot(null);
+        return;
+      }
+
+      await Promise.all(
+        undoSlot.listingIds.map((listingId) =>
+          undoTenantSwipe(session, {
+            listing_id: listingId,
+            tenant_profile_id: undoSlot.card.tenant_profile_id,
+            acted_by_user_id: dashboard.user.id,
+          })
+        )
+      );
+      const outgoing = currentTenantCard;
       const incoming = undoSlot.card;
-      const outDirection: SwipeDirection = undoSlot.movedDirection === "right" ? "left" : "right";
+      const outDirection: SwipeDirection =
+        undoSlot.movedDirection === "right" ? "left" : "right";
       startSwipeMotion({
-        mode: "listing",
+        mode: "tenant",
         outDirection,
         inDirection: undoSlot.movedDirection,
         isUndo: true,
-        listingOutgoing: outgoing,
-        listingIncoming: incoming,
-        tenantOutgoing: null,
-        tenantIncoming: null
+        listingOutgoing: null,
+        listingIncoming: null,
+        tenantOutgoing: outgoing,
+        tenantIncoming: incoming
       });
-      setListingCards((current) => [incoming, ...current]);
-      setCurrentListingImageIndex(0);
-      showActionFlash("undo", "Previous listing");
+      setTenantCards((current) => [incoming, ...current]);
+      showActionFlash("undo", "Previous profile");
       setUndoSlot(null);
-      return;
+    } catch (nextError) {
+      updateUsage((current) => ({
+        ...current,
+        like:
+          undoSlot.action === "LIKE" ? current.like + 1 : current.like,
+        pass:
+          undoSlot.action === "PASS" ? current.pass + 1 : current.pass,
+        undo: Math.max(current.undo - 1, 0),
+      }));
+      setError(nextError instanceof Error ? nextError.message : "Unable to undo this action");
+    } finally {
+      setBusy(false);
     }
-
-    const outgoing = currentTenantCard;
-    const incoming = undoSlot.card;
-    const outDirection: SwipeDirection = undoSlot.movedDirection === "right" ? "left" : "right";
-    startSwipeMotion({
-      mode: "tenant",
-      outDirection,
-      inDirection: undoSlot.movedDirection,
-      isUndo: true,
-      listingOutgoing: null,
-      listingIncoming: null,
-      tenantOutgoing: outgoing,
-      tenantIncoming: incoming
-    });
-    setTenantCards((current) => [incoming, ...current]);
-    showActionFlash("undo", "Previous profile");
-    setUndoSlot(null);
   }, [
     busy,
     currentListingCard,
     currentTenantCard,
+    dashboard?.user.id,
     ensureActionAllowed,
     listingRepresentativeMode,
+    session,
     showActionFlash,
     startSwipeMotion,
+    tenantProfile,
     undoSlot,
-    updateUsage
+    updateUsage,
   ]);
 
   function handleListingMediaWheel(event: WheelEvent<HTMLDivElement>) {

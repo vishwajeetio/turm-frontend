@@ -424,7 +424,7 @@ export async function uploadMedia(
   session: StoredSession,
   input: {
     file: File;
-    targetType: "USER" | "PROPERTY" | "LISTING";
+    targetType: "USER" | "PROPERTY" | "LISTING" | "MESSAGE";
     targetId: string;
     mediaType: "IMAGE" | "VIDEO" | "FLOOR_PLAN" | "DOCUMENT";
     sortOrder?: number;
@@ -700,7 +700,9 @@ export async function sendMessage(
   matchId: string,
   payload: {
     sender_user_id: string;
-    text_body: string;
+    text_body?: string | null;
+    media_asset_id?: string | null;
+    message_type?: "TEXT" | "IMAGE" | "VIDEO";
   }
 ) {
   return apiFetch<{ id: string }>(
@@ -709,9 +711,20 @@ export async function sendMessage(
       method: "POST",
       body: JSON.stringify({
         sender_user_id: payload.sender_user_id,
-        text_body: payload.text_body,
-        message_type: "TEXT"
+        text_body: payload.text_body ?? null,
+        media_asset_id: payload.media_asset_id ?? null,
+        message_type: payload.message_type ?? "TEXT"
       })
+    },
+    { session }
+  );
+}
+
+export async function unmatchCounterpart(session: StoredSession, matchId: string) {
+  return apiFetch<MatchActionResponse>(
+    `/interactions/matches/${matchId}/unmatch`,
+    {
+      method: "POST"
     },
     { session }
   );
@@ -794,6 +807,42 @@ export async function reportMatchCounterpart(
 ) {
   return apiFetch<MatchActionResponse>(
     `/interactions/matches/${matchId}/report`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    { session }
+  );
+}
+
+export async function undoListingSwipe(
+  session: StoredSession,
+  payload: {
+    tenant_profile_id: string;
+    tenant_user_id: string;
+    listing_id: string;
+  }
+) {
+  return apiFetch<{ ok: boolean }>(
+    "/interactions/swipes/listings/undo",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    { session }
+  );
+}
+
+export async function undoTenantSwipe(
+  session: StoredSession,
+  payload: {
+    listing_id: string;
+    tenant_profile_id: string;
+    acted_by_user_id: string;
+  }
+) {
+  return apiFetch<{ ok: boolean }>(
+    "/interactions/swipes/tenants/undo",
     {
       method: "POST",
       body: JSON.stringify(payload)

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import { AppExperiencePrompt } from "@/components/app-experience-prompt";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { AuthSheet } from "@/components/auth-sheet";
 import { getSiteUrl } from "@/lib/site";
@@ -10,7 +11,21 @@ export const metadata: Metadata = {
   title: "Turm | Rental Matches That Move Fast",
   description:
     "Swipe-ready rental discovery for tenants, owners, and brokers across India.",
-  metadataBase: new URL(getSiteUrl())
+  metadataBase: new URL(getSiteUrl()),
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Turm",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -32,6 +47,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <AuthSheet />
+          <AppExperiencePrompt />
         </AuthProvider>
       </body>
     </html>

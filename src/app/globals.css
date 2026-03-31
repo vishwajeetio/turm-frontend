@@ -41,6 +41,7 @@ body {
 
 body {
   overflow-x: hidden;
+  overscroll-behavior: none;
 }
 
 a {
@@ -481,17 +482,46 @@ button {
 .messages-layout,
 .properties-layout,
 .profile-layout {
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: minmax(296px, 340px) minmax(0, 1fr);
 }
 
 .messages-screen-shell {
   position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .list-panel {
   display: grid;
   gap: 10px;
   align-content: start;
+}
+
+.messages-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+.messages-layout > .surface.list-panel,
+.messages-layout > .chat-thread {
+  height: 100%;
+  min-height: 0;
+}
+
+.messages-conversation-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.messages-conversation-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .conversation-row,
@@ -515,7 +545,8 @@ button {
 .chat-thread {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: 720px;
+  min-height: 0;
+  height: 100%;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(7, 11, 14, 0.9);
@@ -533,12 +564,50 @@ button {
   border-bottom: 0;
 }
 
+.thread-composer-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.thread-composer .textarea {
+  min-height: 52px;
+  max-height: 136px;
+  resize: none;
+  padding-bottom: 13px;
+}
+
+.message-attach-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(243, 248, 255, 0.96);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.message-send-button {
+  min-width: 104px;
+  align-self: stretch;
+}
+
 .message-list {
   padding: 22px;
   display: grid;
   gap: 14px;
   align-content: start;
   overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.message-list::-webkit-scrollbar {
+  display: none;
 }
 
 .message-bubble {
@@ -560,6 +629,23 @@ button {
   margin: 0 auto;
   border-style: dashed;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.message-media-card {
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.message-media-card img,
+.message-media-card video {
+  width: 100%;
+  display: block;
+  max-height: min(46vh, 420px);
+  object-fit: cover;
+  background: rgba(3, 6, 10, 0.92);
 }
 
 .messages-message-meta {
@@ -698,6 +784,7 @@ button {
 
 .preview-modal-body {
   min-height: 0;
+  display: grid;
 }
 
 .preview-modal-body > .ultra-feed-card-layout {
@@ -800,6 +887,97 @@ button {
 
 .messages-context-modal {
   width: min(720px, calc(100vw - 20px));
+}
+
+.experience-prompt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  align-items: end;
+  padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+  background: rgba(3, 6, 10, 0.38);
+  backdrop-filter: blur(18px);
+}
+
+.experience-prompt-card {
+  width: min(100%, 620px);
+  margin: 0 auto;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(37, 213, 167, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(7, 12, 17, 0.98), rgba(5, 8, 11, 0.98));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.experience-prompt-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.experience-prompt-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.experience-prompt-logo {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 14px 32px rgba(37, 213, 167, 0.22));
+}
+
+.experience-prompt-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.experience-prompt-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.experience-prompt-grid article {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.experience-prompt-grid article p {
+  margin: 0;
+  color: rgba(236, 242, 252, 0.68);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.experience-prompt-chip {
+  position: fixed;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 210;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 213, 167, 0.28);
+  background: rgba(7, 13, 17, 0.92);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+  color: rgba(243, 248, 255, 0.96);
+  backdrop-filter: blur(16px);
 }
 
 .field-grid {
@@ -998,15 +1176,17 @@ button {
 .site-footer-copy {
   color: rgba(236, 242, 252, 0.6);
   font-size: 0.82rem;
+  text-align: center;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1040px) {
   .messages-layout {
     grid-template-columns: 1fr;
   }
 
   .messages-screen-shell {
-    min-height: min(78dvh, 880px);
+    min-height: 0;
+    height: 100%;
   }
 
   .messages-mobile-overlay {
@@ -1015,6 +1195,7 @@ button {
     z-index: 120;
     background: rgba(6, 10, 15, 0.92);
     border-radius: 24px;
+    overflow: hidden;
   }
 
   .messages-screen-shell.is-thread-open .list-panel {
@@ -1063,9 +1244,26 @@ button {
     justify-content: start;
   }
 
+  .experience-prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .experience-prompt-card header {
+    flex-direction: column;
+  }
+
   .public-site-header-actions,
   .site-footer-top {
     align-items: stretch;
+  }
+
+  .site-footer {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .site-footer-socials {
+    justify-content: center;
   }
 
   .grid-two,
@@ -1073,6 +1271,15 @@ button {
   .metrics-grid,
   .field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .thread-composer-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .message-send-button {
+    grid-column: 1 / -1;
+    min-height: 46px;
   }
 
   .feed-stack {
@@ -1224,6 +1431,13 @@ button {
 
 .site-logo-link {
   text-decoration: none;
+  flex-shrink: 0;
+}
+
+.site-logo-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .ultra-feed-header-actions {
@@ -2536,6 +2750,7 @@ button {
   margin: 12px auto 0;
   display: grid;
   gap: 14px;
+  min-height: 0;
 }
 
 .app-shell-hero-modern {
@@ -2549,6 +2764,26 @@ button {
 .app-shell-page-content {
   display: grid;
   gap: 16px;
+  min-height: 0;
+}
+
+.app-shell-modern-locked {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.app-shell-main-modern-locked {
+  height: calc(100dvh - 78px);
+  overflow: hidden;
+}
+
+.app-shell-page-content-locked,
+.messages-page-root {
+  height: 100%;
+  overflow: hidden;
 }
 
 .mapbox-picker-surface {
@@ -2675,6 +2910,10 @@ button {
   .app-shell-main-modern {
     margin-top: 10px;
     gap: 12px;
+  }
+
+  .app-shell-main-modern-locked {
+    height: calc(100dvh - 72px);
   }
 
   .properties-feed-link {

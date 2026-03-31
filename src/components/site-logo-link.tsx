@@ -15,7 +15,14 @@ export function SiteLogoLink({
   return (
     <Link className={`ultra-feed-header-left site-logo-link ${className}`.trim()} href="/">
       <span className="ultra-feed-brand-mark">
-        <Image alt="Turm" height={22} priority src="/brand-mark.svg" width={22} />
+        <Image
+          alt="Turm"
+          className="site-logo-mark-image"
+          height={42}
+          priority
+          src="/brand-mark.svg"
+          width={42}
+        />
       </span>
       <div>
         <strong>{brandLabel}</strong>
