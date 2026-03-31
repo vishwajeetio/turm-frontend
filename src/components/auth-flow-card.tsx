@@ -50,6 +50,10 @@ export function AuthFlowCard({
 
   function finishFlow() {
     onSuccess?.();
+    if (typeof window !== "undefined") {
+      window.location.assign(resolvedNextPath);
+      return;
+    }
     router.push(resolvedNextPath);
     router.refresh();
   }
